@@ -12,11 +12,12 @@ from sqlalchemy import create_engine
 import pydeck as pdk
 import plotly.express as px
 import json
+import pymysql
 
-db_url = os.environ.get('DB_URL')
-db_user = os.environ.get('DB_USER')
-db_password = os.environ.get('DB_PASSWORD')
-database_name = os.environ.get('DB_NAME')
+db_url = 'localhost'
+db_user = 'root'
+db_password = '123456'
+database_name = 'cnpj'
 
 @st.cache_data
 def get_most_active_tickers():
@@ -59,7 +60,7 @@ def structure_df(tickers, df, last_prices):
             name = original_row['Símbolo'].values[0].split(ticker_symbol)[-1].strip()
             vol = df['Volume'].loc[df['Símbolo'].str.contains(ticker_symbol)].values[0]
             price = df['Preço'].loc[df['Símbolo'].str.contains(ticker_symbol)].values[0]
-            activity = df['Vol * Preço'].loc[df['Símbolo'].str.contains(ticker_symbol)].values[0]
+            activity = df['Price * Vol'].loc[df['Símbolo'].str.contains(ticker_symbol)].values[0]
             percent_change = tickers[ticker]
             last_price = last_prices[ticker]
             sector = original_row['Setor'].values[0]
@@ -69,7 +70,7 @@ def structure_df(tickers, df, last_prices):
     return pd.DataFrame(info_list, columns=['Ticker', 'Nome', 'Volume', 'Preço BRL', 'Vol * Preço BRL','Variação %', 'Valor', 'Setor'])
 
 def read_from_database(query):
-    connection_string = f'mysql+mysqlconnector://{db_user}:{db_password}@{db_url}:3306/{database_name}'
+    connection_string = f'mysql+pymysql://{db_user}:{db_password}@{db_url}:3306/{database_name}'
     engine = create_engine(connection_string)
     
     try:
@@ -159,7 +160,7 @@ if df is not None and not df.empty:
             with col_2:
                 data_final = st.date_input('Selecione a Data Final: ', end_date)
 
-        data = yf.download(tickers, start=data_inicial, end=data_final, interval='1d')['Adj Close']
+        data = yf.download(tickers, start=data_inicial, end=data_final, interval='1d', auto_adjust=False )['Adj Close']
 
         stock_changes = get_stock_changes(data)
 
@@ -182,9 +183,10 @@ if df is not None and not df.empty:
 
         filtered_df = final_df.loc[final_df["Setor"] == select]
         
-        filtered_df['Volume'] = filtered_df['Volume'].apply(formatar_valor)
-        filtered_df['Preço BRL'] = filtered_df['Preço BRL'].apply(formatar_valor)
-        filtered_df['Vol * Preço BRL'] = filtered_df['Vol * Preço BRL'].apply(formatar_valor)
+        filtered_df.loc[:, 'Volume'] = filtered_df['Volume'].apply(formatar_valor)
+        filtered_df.loc[:, 'Preço BRL'] = filtered_df['Preço BRL'].apply(formatar_valor)
+        filtered_df.loc[:, 'Vol * Preço BRL'] = filtered_df['Vol * Preço BRL'].apply(formatar_valor)
+
         
         filtered_df = filtered_df.sort_values(by='Vol * Preço BRL', ascending=False)
         

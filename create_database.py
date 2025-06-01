@@ -1,20 +1,21 @@
 import os
 import pandas as pd
 import mysql.connector
+import pymysql
 from sqlalchemy import create_engine
 from sklearn.model_selection import train_test_split
 
-db_url = os.environ.get('DB_URL')
-db_user = os.environ.get('DB_USER')
-db_password = os.environ.get('DB_PASSWORD')
-database_name = os.environ.get('DB_NAME')
+db_url = 'localhost'
+db_user = 'root'
+db_password = '123456'
+database_name = 'cnpj'
 
 def split_dataframe(df, chunk_size):
     for start in range(0, len(df), chunk_size):
         yield df[start:start + chunk_size]
 
 def write_to_database(df, table_name, chunk_size=10000):
-    connection_string = f'mysql+mysqlconnector://{db_user}:{db_password}@{db_url}:3306/{database_name}'
+    connection_string = f'mysql+pymysql://{db_user}:{db_password}@{db_url}:3306/{database_name}'
     engine = create_engine(connection_string)
 
     with engine.connect() as connection:
@@ -55,7 +56,7 @@ def process_and_write_cnae_secundaria(df_estabelecimentos, chunk_size=10000):
     write_to_database(df_cnae_secundaria, 'cnae_fiscal_secundaria', chunk_size)
     
 def read_from_database(query):
-    connection_string = f'mysql+mysqlconnector://{db_user}:{db_password}@{db_url}:3306/{database_name}'
+    connection_string = f'mysql+pymysql://{db_user}:{db_password}@{db_url}:3306/{database_name}'
     engine = create_engine(connection_string)
     
     try:
@@ -116,6 +117,7 @@ estabelecimentos_dtypes = { 4: str,
                            18: str,
                            21: str,
                            22: str,
+                           23: str,
                            24: str,
                            25: str,
                            26: str,
@@ -128,14 +130,15 @@ colunas_padrao=['codigo',
 
 def get_dataset(type):
     
-    default_path = '..\\Dados\\CNPJ\\'
+    default_path = os.path.join('Dados', 'CNPJ')
     clean = []
     combined_df = []
     stratify = None
     query = None
     cnae_secundaria_df = None
+    date_columns = None
     if type == 'empresas' or type == 'estabelecimentos':  
-        file_paths = [default_path + type.capitalize() + '\\' + type + '_' + str(i) + '.csv' for i in range(10)]
+        file_paths = [os.path.join(default_path, type.capitalize(), f"{type}_{i}.csv") for i in range(10)]
         
         if type == 'empresas':
             names=colunas_empresas
@@ -149,12 +152,13 @@ def get_dataset(type):
             dtypes = estabelecimentos_dtypes
             clean = ['ddd_fax','fax']
             columns_to_check = ['cnpj_basico', 'cnpj_ordem']
+            date_columns = ['data_situacao_cadastral', 'data_inicio_atividade', 'data_situacao_especial']
             query = 'SELECT cnpj_basico FROM cnpj.empresas;'
                 
     else:
         names = colunas_padrao
         dtypes = None
-        file_paths = [default_path + type.capitalize() + '\\' + type + '.csv']
+        file_paths = [os.path.join(default_path, type.capitalize(), f"{type}.csv")]
         columns_to_check = ['codigo']
 
     for file_path in file_paths:
@@ -197,6 +201,11 @@ def get_dataset(type):
         
         #Obtendo o df de treino
         final_df = pd.concat([X_train, y_train], axis=1)
+
+    if date_columns is not None:
+        for col in date_columns:
+            final_df[col] = pd.to_datetime(final_df[col], format='%Y%m%d', errors='coerce')
+
         
     print(final_df.head())
     print(final_df.shape)
