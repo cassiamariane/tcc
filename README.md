@@ -31,5 +31,6 @@ TCC Cássia/<br>
 # Execução
 <ul>
 <li>. venv/Scripts/activate</li>
-<li>streamlit run app.py</li>
+<li>cd app</li>
+<li>streamlit run main.py</li>
 </ul>

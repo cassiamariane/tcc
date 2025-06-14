@@ -2,7 +2,7 @@ CREATE DATABASE cnpj;
 USE cnpj;
 
 CREATE TABLE municipios (
-    codigo bigint primary key,
+    codigo BIGINT PRIMARY KEY,
 	descricao VARCHAR(255)
 );
 CREATE TABLE paises (
@@ -10,7 +10,7 @@ CREATE TABLE paises (
 	descricao VARCHAR(255)
 );
 CREATE TABLE cnaes (
-    codigo bigint primary key,
+    codigo BIGINT PRIMARY KEY,
 	descricao VARCHAR(255)
 );
 CREATE TABLE naturezas_juridicas (
@@ -18,7 +18,7 @@ CREATE TABLE naturezas_juridicas (
 	descricao VARCHAR(255)
 );
 CREATE TABLE empresas (
-	cnpj_basico bigint PRIMARY KEY,
+	cnpj_basico BIGINT PRIMARY KEY,
     razao_social VARCHAR(255),
 	natureza_juridica INT,
 	capital_social VARCHAR(255),
@@ -67,4 +67,26 @@ CREATE TABLE cnae_fiscal_secundaria (
     codigo BIGINT,
     FOREIGN KEY (cnpj_basico, cnpj_ordem) REFERENCES estabelecimentos(cnpj_basico, cnpj_ordem),
     FOREIGN KEY (codigo) REFERENCES cnaes(codigo)
+);
+CREATE TABLE tickers (
+    id INTEGER PRIMARY KEY AUTO_INCREMENT,
+    ticker TEXT,
+    nome TEXT,
+    volume FLOAT,
+    preco_brl FLOAT,
+    vol_preco_brl FLOAT,
+    variacao FLOAT,
+    valor FLOAT,
+    setor TEXT,
+    faixa TEXT,
+    insercao DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE noticias (
+	id INTEGER PRIMARY KEY AUTO_INCREMENT,
+    titulo TEXT,
+    texto TEXT,
+    url VARCHAR(255) UNIQUE,
+    setor TEXT,
+    sentimento TEXT,
+    insercao DATETIME DEFAULT CURRENT_TIMESTAMP
 );
