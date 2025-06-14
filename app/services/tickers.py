@@ -30,8 +30,8 @@ def get_most_active_tickers():
     
 # Função para limpar a coluna de simbolos e obter os tickers (até o 3) brasileiros (adicionando .SA ao final)
 def clean_symbols(df):
-    lista_simbolos = df["Símbolo"].to_list()
-    tickers = [re.search(r'\w+3', simbolo).group() for simbolo in lista_simbolos]
+    symbols = df["Símbolo"].to_list()
+    tickers = [re.search(r'\w+3', symbol).group() for symbol in symbols]
     return [ticker + ".SA" for ticker in tickers]
 
 def get_tickets(df, tickers):

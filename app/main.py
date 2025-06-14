@@ -17,9 +17,9 @@ def get_data():
 df = get_data()
 
 @st.cache_data
-def carregar_leads(query):
+def get_leads(query):
     df = database.read_from_database(query)
-    df = leads.formatar_leads(df)
+    df = leads.format_leads(df)
     return df
 
 
@@ -97,10 +97,10 @@ if df is not None and not df.empty:
                     ON e.cnae_fiscal_principal = c.codigo
                 WHERE c.codigo IN ({codigos});
                 '''
-        datas = database.read_from_database(query)
-        lista_datas = datas['data_inicio_atividade'].tolist()
+        dates = database.read_from_database(query)
+        dates_list = dates['data_inicio_atividade'].tolist()
 
-        df = pd.DataFrame(lista_datas, columns=['Data'])
+        df = pd.DataFrame(dates_list, columns=['Data'])
 
         df['Data'] = pd.to_datetime(df['Data'], errors='coerce')
         df['Ano'] = df['Data'].dt.year
@@ -129,7 +129,7 @@ if df is not None and not df.empty:
             
             if reputation == "Neutro":
                 color = "#4A90E2"
-            elif reputation == "Positivo" or reputation == "Muito positivo":
+            elif reputation in ["Positivo", "Muito positivo"]:
                 color = "#2FBF42"
             else:
                 color = "#CB3131"
@@ -137,7 +137,8 @@ if df is not None and not df.empty:
             st.markdown(f"<h2 style='color: {color};'>{reputation}</h2>", unsafe_allow_html=True)
 
             st.subheader("Notícias analisadas")
-            st.dataframe(data)
+            styled_data = data.style.map(utils.highlight_sentiment, subset=["Sentimento"])
+            st.dataframe(styled_data)
 
             st.subheader("Nuvem de Palavras")
             st.markdown("Visualize as palavras mais frequentes nas notícias analisadas, destacando os termos com maior relevância e recorrência.", unsafe_allow_html=True)
@@ -159,10 +160,10 @@ if df is not None and not df.empty:
                 WHERE c.codigo IN ({codigos});
                 '''
         citys = database.read_from_database(query)
-        lista_citys = citys['municipio'].tolist()
+        citys_list = citys['municipio'].tolist()
         coordinates = []
         
-        for city in lista_citys:
+        for city in citys_list:
             lat, lon = utils.get_coordinates(city)
             if lat and lon:
                 coordinates.append({'city': city, 'latitude': float(lat), 'longitude': float(lon)}) 
@@ -187,7 +188,7 @@ if df is not None and not df.empty:
                 INNER JOIN cnpj.cnaes ON cnae_fiscal_principal = cnaes.codigo
                 WHERE cnaes.codigo IN ({codigos});
                 '''
-        leads = carregar_leads(query)
+        leads = get_leads(query)
         st.header("Leads do setor")
         text = """Lista atualizada de empresas-chave para ampliar sua rede."""
         st.markdown(text, unsafe_allow_html=True)

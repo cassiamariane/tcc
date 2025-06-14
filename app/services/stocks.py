@@ -35,9 +35,9 @@ def structure_df(tickers, df, last_prices, period):
     
     info_df = pd.DataFrame(info_list, columns=['ticker', 'nome', 'volume', 'preco_brl', 'vol_preco_brl','variacao', 'valor', 'setor', 'faixa', 'insercao'])
 
-    info_df['volume'] = info_df['volume'].apply(utils.formatar_valor)
-    info_df['preco_brl'] = info_df['preco_brl'].apply(utils.formatar_valor)
-    info_df['vol_preco_brl'] = info_df['vol_preco_brl'].apply(utils.formatar_valor)
+    info_df['volume'] = info_df['volume'].apply(utils.format_value)
+    info_df['preco_brl'] = info_df['preco_brl'].apply(utils.format_value)
+    info_df['vol_preco_brl'] = info_df['vol_preco_brl'].apply(utils.format_value)
     
     info_df.to_csv('info_df.csv', index=False, encoding='utf-8')
     database.write_to_database("tickers", info_df, "append")

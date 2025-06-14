@@ -26,22 +26,30 @@ def get_coordinates(city):
     
     return None, None
 
-def formatar_valor(valor_str):
+def format_value(value):
     
-    if 'BRL' in valor_str:
-        valor_str = valor_str.replace(' BRL', '').strip()
-    if 'K' in valor_str:
-        fator = 1_000
-        valor_str = valor_str.replace('K', '').strip()
-    if 'M' in valor_str:
-        fator = 1_000_000
-        valor_str = valor_str.replace('M', '').strip()
-    elif 'B' in valor_str:
-        fator = 1_000_000_000
-        valor_str = valor_str.replace('B', '').strip()
+    if 'BRL' in value:
+        value = value.replace(' BRL', '').strip()
+    if 'K' in value:
+        factor = 1_000
+        value = value.replace('K', '').strip()
+    if 'M' in value:
+        factor = 1_000_000
+        value = value.replace('M', '').strip()
+    elif 'B' in value:
+        factor = 1_000_000_000
+        value = value.replace('B', '').strip()
     else:
-        fator = 1 
+        factor = 1 
     
-    valor_num = float(valor_str.replace('.', '').replace(',', '.')) * fator
+    final_value = float(value.replace('.', '').replace(',', '.')) * factor
     
-    return valor_num
+    return final_value
+
+def highlight_sentiment(val):
+    if val == "Neutro":
+        return "color: #4A90E2"
+    elif val in ["Positivo", "Muito positivo"]:
+        return "color: #2FBF42"
+    else:
+        return "color: #CB3131"

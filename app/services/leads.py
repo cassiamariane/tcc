@@ -1,6 +1,7 @@
 import pandas as pd
 
-def formatar_leads(leads: pd.DataFrame) -> pd.DataFrame:
+def format_leads(leads: pd.DataFrame) -> pd.DataFrame:
+    leads = leads.copy()
     leads["CNPJ"] = (
         leads["cnpj_basico"].astype(str).str.zfill(8).str.replace(r"(\d{2})(\d{3})(\d{3})", r"\1.\2.\3", regex=True)
         + "/"
@@ -29,7 +30,7 @@ def formatar_leads(leads: pd.DataFrame) -> pd.DataFrame:
         8: "BAIXADA"
     }).fillna(leads["situacao_cadastral"])
     
-    leads["Data de abertura"] = pd.to_datetime(leads["Data de abertura"]).dt.strftime('%d/%m/%Y')
+    leads["Data de abertura"] = pd.to_datetime(leads["Data de abertura"], errors='coerce').dt.strftime('%d/%m/%Y')
     
     leads.drop(columns=["cnpj_basico", "cnpj_ordem", "cnpj_dv", "porte", "situacao_cadastral"], inplace=True)
     
