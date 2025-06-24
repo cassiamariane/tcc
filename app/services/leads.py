@@ -10,7 +10,6 @@ def format_leads(leads: pd.DataFrame) -> pd.DataFrame:
         + leads["cnpj_dv"].astype(str).str.zfill(2)
     )
     
-    # Mover coluna CNPJ para o início
     cols = leads.columns.tolist()
     cols.insert(0, cols.pop(cols.index("CNPJ")))
     leads = leads[cols]

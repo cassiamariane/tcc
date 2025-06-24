@@ -4,9 +4,7 @@ from services import database
 import datetime as dt
 
 def get_stock_changes(data: pd.DataFrame) -> pd.Series:
-    # Seleciona só colunas numéricas para evitar erro com Timestamp
     data_numeric = data.select_dtypes(include=['number'])
-    # Calcula variação percentual entre a linha atual e a anterior
     return (data_numeric.iloc[0] - data_numeric.iloc[0].shift(1)) / data_numeric.iloc[0].shift(1) * 100
 
 def structure_df(tickers, df, last_prices, period):
@@ -39,7 +37,6 @@ def structure_df(tickers, df, last_prices, period):
     info_df['preco_brl'] = info_df['preco_brl'].apply(utils.format_value)
     info_df['vol_preco_brl'] = info_df['vol_preco_brl'].apply(utils.format_value)
     
-    info_df.to_csv('info_df.csv', index=False, encoding='utf-8')
     database.write_to_database("tickers", info_df, "append")
     info_df['insercao'] = pd.to_datetime(info_df['insercao']).dt.strftime('%d/%m/%Y')
     return info_df.rename(columns={

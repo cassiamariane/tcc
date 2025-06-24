@@ -18,7 +18,7 @@ import datetime as dt
 nlp = spacy.load("pt_core_news_sm")
 def get_source_url(google_news_url):
     options = Options()
-    options.headless = True
+    options.add_argument("--headless=new")
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
 
@@ -58,7 +58,6 @@ def predict_sentiment(texts):
     return [sentiment_map[p] for p in torch.argmax(probabilities, dim=-1).tolist()]
 
 def process_text(text):
-    # Normalização: lowercase + remoção de acentos
     text = text.lower()
     text = unicodedata.normalize("NFKD", text).encode("ASCII", "ignore").decode("utf-8")
 
@@ -106,7 +105,6 @@ def sentiment_analysis(sector):
     news = []
     processed_texts = []
 
-    # Verifica a última inserção
     query_max = '''
         SELECT MAX(insercao) as last_update
         from noticias
@@ -121,7 +119,7 @@ def sentiment_analysis(sector):
             last_update = pd.to_datetime(raw_last_update)
 
     now = dt.datetime.now()
-
+    
     if last_update is None or (now - last_update) >= dt.timedelta(hours=72):
         search = f"Setor {sector}"
         urls = get_google_news_urls(search)

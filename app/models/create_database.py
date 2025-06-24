@@ -1,44 +1,20 @@
+from collections import defaultdict
+import glob
 import os
 import pandas as pd
 import mysql.connector
 import pymysql
 from sqlalchemy import create_engine
-from sklearn.model_selection import train_test_split
-
-db_url = 'localhost'
-db_user = 'root'
-db_password = '123456'
-database_name = 'cnpj'
-
-def split_dataframe(df, chunk_size):
-    for start in range(0, len(df), chunk_size):
-        yield df[start:start + chunk_size]
-
-def write_to_database(df, table_name, chunk_size=10000):
-    connection_string = f'mysql+pymysql://{db_user}:{db_password}@{db_url}:3306/{database_name}'
-    engine = create_engine(connection_string)
-
-    with engine.connect() as connection:
-        with connection.begin() as transaction:
-            try:
-                for chunk in split_dataframe(df, chunk_size):
-                    chunk.to_sql(name=table_name, con=connection, if_exists='append', index=False)
-                transaction.commit()
-            except Exception as e:
-                transaction.rollback()
-                print(f"Erro ao carregar dados na tabela {table_name}: {e}")
-            finally:
-                pass
-
-    engine.dispose()
+import json
+from services import utils
     
 def process_and_write_cnae_secundaria(df_estabelecimentos, chunk_size=10000):
-    # Extrai CNAE Fiscal Secundaria
+
     rows = []
     for _, row in df_estabelecimentos.iterrows():
         cnpj_basico = row['cnpj_basico']
         cnpj_ordem = row['cnpj_ordem']
-        cnaes_secundaria = row['cnae_fiscal_secundaria']
+        cnaes_secundaria = row['codigo']
         
         if pd.notna(cnaes_secundaria):
             
@@ -51,22 +27,8 @@ def process_and_write_cnae_secundaria(df_estabelecimentos, chunk_size=10000):
     
     df_cnae_secundaria = pd.DataFrame(rows)
 
-    write_to_database(df_cnae_secundaria, 'cnae_fiscal_secundaria', chunk_size)
+    utils.write_to_database('cnae_fiscal_secundaria', df_cnae_secundaria, 'append',chunk_size)
     
-def read_from_database(query):
-    connection_string = f'mysql+pymysql://{db_user}:{db_password}@{db_url}:3306/{database_name}'
-    engine = create_engine(connection_string)
-    
-    try:
-        with engine.connect() as connection:
-            result = pd.read_sql(query, con=connection)
-    except Exception as e:
-        print(f"Erro ao consultar dados: {e}")
-        result = pd.DataFrame()  # Retorna um DataFrame vazio em caso de erro
-    finally:
-        engine.dispose()
-
-    return result
     
 colunas_empresas=['cnpj_basico',
                   'razao_social',
@@ -126,33 +88,125 @@ estabelecimentos_dtypes = { 4: str,
 colunas_padrao=['codigo',
                'descricao']
 
+def related_inserts(cnpjs_filtrados):
+    file_paths = [f'Dados2025/CNPJ/Empresas/empresas_{i}.csv' for i in range(10)]
+    combined_df = []
+
+    for file_path in file_paths:
+        df = pd.read_csv(file_path, delimiter=';', encoding='latin1', header=None, names=colunas_empresas, dtype=str)
+        df = df.drop(columns=['qualificacao'], errors='ignore')
+        df = df.dropna(subset=['cnpj_basico', 'razao_social'])
+        df['cnpj_basico'] = df['cnpj_basico'].astype(str).str.zfill(8)
+        cnpjs_filtrados = [str(c).zfill(8) for c in cnpjs_filtrados]
+        df = df[df['cnpj_basico'].isin(cnpjs_filtrados)]
+        combined_df.append(df)
+
+    final_df = pd.concat(combined_df, ignore_index=True).drop_duplicates()
+    utils.write_to_database('empresas', final_df, 'append')
+
+def sampling_process():
+    import json
+    import glob
+    from collections import defaultdict
+    
+    with open('setores.json', 'r', encoding='utf-8') as f:
+        SECTOR_MAP = json.load(f)
+
+    CNAE_TO_SECTOR = {
+        str(cnae).zfill(7): sector
+        for sector, cnaes in SECTOR_MAP.items()
+        for cnae in cnaes
+    }
+
+    files = glob.glob('Dados2025/CNPJ/Estabelecimentos/*.csv')
+
+    sampling_by_sector = defaultdict(list)
+    cnpjs_list = set()
+    cnaes_secundaria = []
+
+    MAX_ROWS = 1000
+    SAMPLING_BY_FILE = 200
+
+    for arq in files:
+        for chunk in pd.read_csv(arq, delimiter=';', encoding='latin1', header=None,
+                                  names=colunas_estabelecimentos, dtype=estabelecimentos_dtypes,
+                                  chunksize=100_000):
+            chunk['cnae_fiscal_principal'] = chunk['cnae_fiscal_principal'].astype(str).str.zfill(7)
+            chunk['sector'] = chunk['cnae_fiscal_principal'].map(CNAE_TO_SECTOR)
+            chunk = chunk[chunk['sector'].notna()]
+
+            missing_sectors = {
+                sector: MAX_ROWS - len(sampling_by_sector[sector])
+                for sector in chunk['sector'].unique()
+                if len(sampling_by_sector[sector]) < MAX_ROWS
+            }
+
+            for sector, missing in missing_sectors.items():
+                subset = chunk[chunk['sector'] == sector]
+                if not subset.empty:
+                    n = min(missing, SAMPLING_BY_FILE, len(subset))
+                    sample = subset.sample(n=n, random_state=42)
+
+                    cnpjs_list.update(sample['cnpj_basico'].unique())
+
+                    if 'cnae_fiscal_secundaria' in sample.columns:
+                        cnaes = sample[['cnpj_basico', 'cnpj_ordem', 'cnae_fiscal_secundaria']].dropna()
+                        cnaes_secundaria.append(cnaes)
+
+                    sample = sample.drop(columns=['cnae_fiscal_secundaria'], errors='ignore')
+                    sampling_by_sector[sector].append(sample)
+
+    final_df = pd.concat([pd.concat(samples) for samples in sampling_by_sector.values()], ignore_index=True)
+
+    for col in ['data_situacao_cadastral', 'data_inicio_atividade', 'data_situacao_especial']:
+        final_df[col] = pd.to_datetime(final_df[col], format='%Y%m%d', errors='coerce')
+
+    final_df = final_df.drop(columns=['sector', 'ddd_fax', 'fax'], errors='ignore')
+    final_df['cnae_fiscal_principal'] = pd.to_numeric(final_df['cnae_fiscal_principal'], errors='coerce').astype('Int64')
+    final_df['ddd_1'] = pd.to_numeric(final_df['ddd_1'], errors='coerce').astype('Int64')
+    final_df['telefone_1'] = pd.to_numeric(final_df['telefone_1'], errors='coerce').astype('Int64')
+    final_df['ddd_2'] = pd.to_numeric(final_df['ddd_2'], errors='coerce').astype('Int64')
+    final_df['telefone_2'] = pd.to_numeric(final_df['telefone_2'], errors='coerce').astype('Int64')
+    final_df['pais'] = pd.to_numeric(final_df['pais'], errors='coerce').astype('Int64')
+    countrys = utils.read_from_database("SELECT codigo FROM paises")['codigo'].astype('Int64').tolist()
+    valid_cnaes = utils.read_from_database("SELECT codigo FROM cnaes")['codigo'].astype('Int64').tolist()
+    citys = utils.read_from_database("SELECT codigo FROM municipios")['codigo'].astype('Int64').tolist()
+
+    final_df = final_df[final_df['pais'].isin(countrys)]
+    final_df = final_df[final_df['cnae_fiscal_principal'].isin(valid_cnaes)]
+    final_df = final_df[final_df['municipio'].isin(citys)]
+    
+    related_inserts(list(cnpjs_list))
+
+    utils.write_to_database('estabelecimentos', final_df.drop_duplicates(), 'append')
+
+    if cnaes_secundaria:
+        cnae_secundaria_df = pd.concat(cnaes_secundaria, ignore_index=True).drop_duplicates()
+
+        valid_cnpjs = final_df[['cnpj_basico', 'cnpj_ordem']].drop_duplicates()
+        cnae_secundaria_df = cnae_secundaria_df.merge(
+            valid_cnpjs,
+            on=['cnpj_basico', 'cnpj_ordem'],
+            how='inner'
+        )
+
+        cnae_secundaria_df = cnae_secundaria_df.rename(columns={'cnae_fiscal_secundaria': 'codigo'})
+
+        process_and_write_cnae_secundaria(cnae_secundaria_df)
+
+    print("Processamento de estabelecimentos concluído com sucesso!")
+
+
 def get_dataset(type):
     
-    default_path = os.path.join('Dados', 'CNPJ')
+    default_path = os.path.join('Dados2025', 'CNPJ')
     clean = []
     combined_df = []
-    stratify = None
     query = None
-    cnae_secundaria_df = None
     date_columns = None
-    if type == 'empresas' or type == 'estabelecimentos':  
-        file_paths = [os.path.join(default_path, type.capitalize(), f"{type}_{i}.csv") for i in range(10)]
-        
-        if type == 'empresas':
-            names=colunas_empresas
-            dtypes = None
-            clean = ['qualificacao']
-            columns_to_check = ['cnpj_basico', 'razao_social']
-            stratify = 'porte'
-            
-        elif type == 'estabelecimentos':
-            names=colunas_estabelecimentos
-            dtypes = estabelecimentos_dtypes
-            clean = ['ddd_fax','fax']
-            columns_to_check = ['cnpj_basico', 'cnpj_ordem']
-            date_columns = ['data_situacao_cadastral', 'data_inicio_atividade', 'data_situacao_especial']
-            query = 'SELECT cnpj_basico FROM cnpj.empresas;'
-                
+    if type == 'estabelecimentos':  
+        sampling_process()
+        return
     else:
         names = colunas_padrao
         dtypes = None
@@ -168,50 +222,27 @@ def get_dataset(type):
         df = df.dropna(subset=columns_to_check, how='any')
         
         if not query is None:
-            df_cnpjs = read_from_database(query)
+            df_cnpjs = utils.read_from_database(query)
             lista_cnpjs = df_cnpjs['cnpj_basico'].tolist()
 
             df = df[df['cnpj_basico'].isin(lista_cnpjs)]
             
         combined_df.append(df)
         
-    # Faz o merge de todos os dataframes
     final_df = pd.concat(combined_df, ignore_index=True)
     duplicates = final_df.duplicated().any()
     
     if(duplicates):
         final_df = final_df.drop_duplicates()
-        
-    if 'cnae_fiscal_secundaria' in final_df.columns:
-        cnae_secundaria_df = final_df[['cnpj_basico', 'cnpj_ordem', 'cnae_fiscal_secundaria']]
-        final_df = final_df.drop(columns=['cnae_fiscal_secundaria'])
-        
-    if not stratify is None:
-        print(final_df['porte'].value_counts())
-        # Separando as features (todas as colunas exceto a 4) e o target (coluna 4)
-        str_df = final_df.dropna(subset=['porte'])
-        x = str_df.drop(columns=['porte'])
-        y = str_df['porte']
-        
-        # Realizando a divisão de dados com stratify pela coluna 4 (porte), reservando 90% para teste e 10% para treino(desenvolvimento)
-        X_train, X_test, y_train, y_test = train_test_split(x, y, test_size=0.99999, stratify=y)
-        print(y_train.value_counts())
-        
-        #Obtendo o df de treino
-        final_df = pd.concat([X_train, y_train], axis=1)
-
+    
     if date_columns is not None:
         for col in date_columns:
             final_df[col] = pd.to_datetime(final_df[col], format='%Y%m%d', errors='coerce')
 
-        
     print(final_df.head())
     print(final_df.shape)
-    write_to_database(final_df, type)
+    utils.write_to_database(type, final_df, 'append')
     
-    if not cnae_secundaria_df is None:
-        process_and_write_cnae_secundaria(cnae_secundaria_df)
+types = ['cnaes', 'naturezas_juridicas', 'municipios', 'paises','estabelecimentos']
     
-types = ['cnaes', 'naturezas_juridicas', 'municipios', 'paises','empresas', 'estabelecimentos']
-    
-get_dataset(types[5])
+get_dataset(types[4])

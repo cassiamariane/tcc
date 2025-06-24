@@ -20,7 +20,6 @@ def get_most_active_tickers():
     page = requests.get(url, headers=headers)
     if page.status_code == 200:
         print("Página carregada com sucesso!")
-        # Extrai tabela do HTML
         tree = html.fromstring(page.content)
         table = tree.xpath('//table[@class="table-Ngq2xrcG"]')[0]
         return pd.read_html(etree.tostring(table))[0]
@@ -28,7 +27,6 @@ def get_most_active_tickers():
         print(f"Erro ao carregar a página: {page.status_code}")
         return None
     
-# Função para limpar a coluna de simbolos e obter os tickers (até o 3) brasileiros (adicionando .SA ao final)
 def clean_symbols(df):
     symbols = df["Símbolo"].to_list()
     tickers = [re.search(r'\w+3', symbol).group() for symbol in symbols]
@@ -37,12 +35,12 @@ def clean_symbols(df):
 def get_tickets(df, tickers):
     query = f'''
                 SELECT MAX(insercao)
-                FROM cnpj.tickers;
+                FROM tcc.tickers;
             '''
     query_tickers = f'''
                 SELECT *
-                FROM cnpj.tickers
-                WHERE insercao = (SELECT MAX(insercao) FROM cnpj.tickers);
+                FROM tcc.tickers
+                WHERE insercao = (SELECT MAX(insercao) FROM tcc.tickers);
             '''
     
     last_update_df = database.read_from_database(query)
@@ -58,7 +56,7 @@ def get_tickets(df, tickers):
 
     today = dt.datetime.now()
 
-    if last_update is None or (today - last_update) >= dt.timedelta(hours=72):
+    if last_update is None or (today - last_update) >= dt.timedelta(days=7):
         periods = {
             'Últimos 15 dias': today - dt.timedelta(days=15),
             'Último mês': today - dt.timedelta(days=30),

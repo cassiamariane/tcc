@@ -88,5 +88,6 @@ CREATE TABLE noticias (
     url VARCHAR(255) UNIQUE,
     setor TEXT,
     sentimento TEXT,
-    insercao DATETIME DEFAULT CURRENT_TIMESTAMP
+    insercao DATETIME DEFAULT CURRENT_TIMESTAMP,
+    texto_processado TEXT
 );

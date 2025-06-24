@@ -18,21 +18,30 @@ def read_from_database(query, params=None):
             result = pd.read_sql(query, con=connection, params=params)
     except Exception as e:
         print(f"Erro ao consultar dados: {e}")
-        result = pd.DataFrame()  # Retorna um DataFrame vazio em caso de erro
+        result = pd.DataFrame()
     finally:
         engine.dispose()
 
     return result
 
-def write_to_database(table, df, exists):
+def split_dataframe(df, chunk_size):
+    for start in range(0, len(df), chunk_size):
+        yield df[start:start + chunk_size]
+
+def write_to_database(table, df, exists, chunk_size=10000):
     connection_string = f'mysql+pymysql://{db_user}:{db_password}@{db_url}:3306/{database_name}'
     engine = create_engine(connection_string)
-    
-    try:
-        with engine.connect() as connection:
-            df.to_sql(name=table, con=connection, if_exists=exists, index=False)
-            print(f"Dados de {table} inseridos no banco")
-    except Exception as e:
-        print(f"Erro ao inserir dados de {table} dados: {e}")
-    finally:
-        engine.dispose()
+
+    with engine.connect() as connection:
+        with connection.begin() as transaction:
+            try:
+                for chunk in split_dataframe(df, chunk_size):
+                    chunk.to_sql(name=table, con=connection, if_exists=exists, index=False)
+                transaction.commit()
+            except Exception as e:
+                transaction.rollback()
+                print(f"Erro ao carregar dados na tabela {table}: {e}")
+            finally:
+                pass
+
+    engine.dispose()
