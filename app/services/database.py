@@ -1,7 +1,7 @@
 from os import environ
 import pandas as pd
 import mysql.connector
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 import pymysql
 
 db_url = environ['DB_URL']
@@ -45,3 +45,17 @@ def write_to_database(table, df, exists, chunk_size=10000):
                 pass
 
     engine.dispose()
+
+def update_database(query, params=None):
+    connection = pymysql.connect(
+        host=db_url,
+        user=db_user,
+        password=db_password,
+        database=database_name
+    )
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(query, params)
+        connection.commit()
+    finally:
+        connection.close()

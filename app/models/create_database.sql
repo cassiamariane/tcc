@@ -1,5 +1,5 @@
-CREATE DATABASE cnpj;
-USE cnpj;
+CREATE DATABASE tcc;
+USE tcc;
 
 CREATE TABLE municipios (
     codigo BIGINT PRIMARY KEY,

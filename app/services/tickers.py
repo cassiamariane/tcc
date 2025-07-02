@@ -33,69 +33,79 @@ def clean_symbols(df):
     return [ticker + ".SA" for ticker in tickers]
 
 def get_tickets(df, tickers):
-    query = f'''
-                SELECT MAX(insercao)
-                FROM tcc.tickers;
-            '''
-    query_tickers = f'''
-                SELECT *
-                FROM tcc.tickers
-                WHERE insercao = (SELECT MAX(insercao) FROM tcc.tickers);
-            '''
-    
-    last_update_df = database.read_from_database(query)
-
-    if last_update_df is not None and not last_update_df.empty:
-        raw_last_update = last_update_df.iloc[0, 0]
-        if pd.notna(raw_last_update):
-            last_update = pd.to_datetime(raw_last_update)
-        else:
-            last_update = None
-    else:
-        last_update = None
-
     today = dt.datetime.now()
 
-    if last_update is None or (today - last_update) >= dt.timedelta(days=7):
-        periods = {
-            'Últimos 15 dias': today - dt.timedelta(days=15),
-            'Último mês': today - dt.timedelta(days=30),
-            'Últimos 6 meses': today - dt.timedelta(days=182),
-            'Último ano': today - dt.timedelta(days=365),
-        }
+    periods = {
+        'Últimos 15 dias': today - dt.timedelta(days=15),
+        'Último mês': today - dt.timedelta(days=30),
+        'Últimos 6 meses': today - dt.timedelta(days=182),
+        'Último ano': today - dt.timedelta(days=365),
+    }
 
-        all_data = []
+    all_data = []
 
-        for label, start_date in periods.items():
-            data = yf.download(
-                tickers,
-                start=start_date.strftime('%Y-%m-%d'),
-                end=today.strftime('%Y-%m-%d'),
-                interval='1d',
-                auto_adjust=False
-            )['Adj Close']
+    for faixa, start_date in periods.items():
+        check_query = f"""
+            SELECT MAX(insercao)
+            FROM tcc.tickers
+            WHERE faixa = %s;
+        """
+        last_update_df = database.read_from_database(check_query, params=(faixa,))
+        last_update = pd.to_datetime(last_update_df.iloc[0, 0]) if not last_update_df.empty and pd.notna(last_update_df.iloc[0, 0]) else None
+
+        if last_update is not None and (today - last_update) < dt.timedelta(days=7):
             
-            if data.empty:
-                continue
+            faixa_data = database.read_from_database(
+                "SELECT * FROM tcc.tickers WHERE faixa = %s AND insercao = %s",
+                params=(faixa, last_update.strftime('%Y-%m-%d %H:%M:%S'))
+            )
+        else:
+            try:
+                print(f"Buscando dados da API para: {faixa}")
+                data = yf.download(
+                    tickers,
+                    start=start_date.strftime('%Y-%m-%d'),
+                    end=today.strftime('%Y-%m-%d'),
+                    interval='1d',
+                    auto_adjust=False
+                )['Adj Close']
 
-            data = data.reset_index()
-            data['faixa'] = label
-            data['insercao'] = today
+                if data.empty:
+                    raise ValueError("Dados vazios da API")
 
-            stock_changes = stocks.get_stock_changes(data)
-            last_prices = data.iloc[-1].dropna()
-            
-            structured_df = stocks.structure_df(stock_changes.dropna(), df, last_prices, label)
-            all_data.append(structured_df)
+                data = data.reset_index()
+                data['faixa'] = faixa
+                data['insercao'] = today
 
-    
+                stock_changes = stocks.get_stock_changes(data)
+                last_prices = data.iloc[-1].dropna()
+                structured_df = stocks.structure_df(stock_changes.dropna(), df, last_prices, faixa)
+                faixa_data = structured_df
+
+            except Exception as e:
+                print(f"Erro ao buscar da API para a faixa '{faixa}': {e}")
+                print("Carregando dados mais recentes do banco para essa faixa.")
+                fallback_query = f"""
+                    SELECT *
+                    FROM tcc.tickers
+                    WHERE faixa = %s
+                    ORDER BY insercao DESC
+                    LIMIT 1;
+                """
+                faixa_data = database.read_from_database(fallback_query, params=(faixa,))
+
+        if not faixa_data.empty:
+            all_data.append(faixa_data)
+
+    # 4. Concatena todas as faixas
+    if all_data:
         result = pd.concat(all_data, ignore_index=True)
 
-    else:
-
-        result = database.read_from_database(query_tickers)
+        # Formata
         result["insercao"] = pd.to_datetime(result["insercao"]).dt.strftime('%d/%m/%Y')
-        result = result.drop(columns=['id'])
+        if 'id' in result.columns:
+            result = result.drop(columns=['id'])
+
         result = result.rename(columns={
             'ticker': 'Ticker',
             'nome': 'Nome',
@@ -108,4 +118,8 @@ def get_tickets(df, tickers):
             'faixa': 'Faixa',
             'insercao': 'Data de inserção'
         })
-    return result
+
+        return result
+    else:
+        print("Nenhum dado disponível.")
+        return pd.DataFrame()

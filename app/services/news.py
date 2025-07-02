@@ -129,6 +129,10 @@ def sentiment_analysis(sector):
             result = database.read_from_database(check_query, params=(url,))
             
             if not result.empty:
+                update_query = "UPDATE noticias SET insercao = %s WHERE url = %s"
+                params = (now, url)
+                database.update_database(update_query, params)
+
                 row = result.iloc[0]
                 news_titles.append(row['titulo'])
                 valid_urls.append(url)
@@ -163,6 +167,8 @@ def sentiment_analysis(sector):
             SELECT titulo, sentimento, texto, url, texto_processado
             from noticias
             WHERE setor = %s
+            ORDER BY insercao DESC
+            LIMIT 5;
         """
         existing_news = database.read_from_database(existing_news_query, params=(sector,))
         
