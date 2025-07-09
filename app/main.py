@@ -88,8 +88,8 @@ if df is not None and not df.empty:
         codigos = ', '.join(map(str, codigos))
         query = f'''
                 SELECT e.data_inicio_atividade
-                FROM tcc.estabelecimentos e
-                JOIN tcc.cnaes c 
+                FROM cnpj2.estabelecimentos e
+                JOIN cnpj2.cnaes c 
                     ON e.cnae_fiscal_principal = c.codigo
                 WHERE c.codigo IN ({codigos});
                 '''
@@ -173,10 +173,10 @@ if df is not None and not df.empty:
     with tab_4:
         query = f'''
                 SELECT m.descricao AS municipio
-                FROM tcc.estabelecimentos e
-                JOIN tcc.cnaes c 
+                FROM cnpj2.estabelecimentos e
+                JOIN cnpj2.cnaes c 
                     ON e.cnae_fiscal_principal = c.codigo
-                JOIN tcc.municipios m
+                JOIN cnpj2.municipios m
                     ON e.municipio = m.codigo
                 WHERE c.codigo IN ({codigos});
                 '''
@@ -203,10 +203,10 @@ if df is not None and not df.empty:
                 SELECT es.cnpj_basico, cnpj_ordem, cnpj_dv,
                 razao_social AS Empresa, data_inicio_atividade AS "Data de abertura", 
                 municipios.descricao AS Cidade, uf AS Estado, porte, situacao_cadastral, cnaes.descricao AS "CNAE"
-                FROM tcc.estabelecimentos AS es
-                INNER JOIN tcc.municipios ON municipio = municipios.codigo
-                INNER JOIN tcc.empresas ON es.cnpj_basico = empresas.cnpj_basico
-                INNER JOIN tcc.cnaes ON cnae_fiscal_principal = cnaes.codigo
+                FROM cnpj2.estabelecimentos AS es
+                INNER JOIN cnpj2.municipios ON municipio = municipios.codigo
+                INNER JOIN cnpj2.empresas ON es.cnpj_basico = empresas.cnpj_basico
+                INNER JOIN cnpj2.cnaes ON cnae_fiscal_principal = cnaes.codigo
                 WHERE cnaes.codigo IN ({codigos})
                 ORDER BY RAND(42)
                 LIMIT 100;

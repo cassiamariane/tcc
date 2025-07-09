@@ -49,6 +49,7 @@ def predict_sentiment(texts):
     MODEL_NAME = "tabularisai/multilingual-sentiment-analysis"
     tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
     model = AutoModelForSequenceClassification.from_pretrained(MODEL_NAME)
+    model.eval() 
 
     inputs = tokenizer(texts, return_tensors="pt", truncation=True, padding=True, max_length=512)
     with torch.no_grad():

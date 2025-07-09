@@ -47,7 +47,7 @@ def get_tickets(df, tickers):
     for faixa, start_date in periods.items():
         check_query = f"""
             SELECT MAX(insercao)
-            FROM tcc.tickers
+            FROM cnpj2.tickers
             WHERE faixa = %s;
         """
         last_update_df = database.read_from_database(check_query, params=(faixa,))
@@ -56,7 +56,7 @@ def get_tickets(df, tickers):
         if last_update is not None and (today - last_update) < dt.timedelta(days=7):
             
             faixa_data = database.read_from_database(
-                "SELECT * FROM tcc.tickers WHERE faixa = %s AND insercao = %s",
+                "SELECT * FROM cnpj2.tickers WHERE faixa = %s AND insercao = %s",
                 params=(faixa, last_update.strftime('%Y-%m-%d %H:%M:%S'))
             )
         else:
@@ -87,7 +87,7 @@ def get_tickets(df, tickers):
                 print("Carregando dados mais recentes do banco para essa faixa.")
                 fallback_query = f"""
                     SELECT *
-                    FROM tcc.tickers
+                    FROM cnpj2.tickers
                     WHERE faixa = %s
                     ORDER BY insercao DESC
                     LIMIT 1;
@@ -97,11 +97,9 @@ def get_tickets(df, tickers):
         if not faixa_data.empty:
             all_data.append(faixa_data)
 
-    # 4. Concatena todas as faixas
     if all_data:
         result = pd.concat(all_data, ignore_index=True)
 
-        # Formata
         result["insercao"] = pd.to_datetime(result["insercao"]).dt.strftime('%d/%m/%Y')
         if 'id' in result.columns:
             result = result.drop(columns=['id'])

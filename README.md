@@ -12,25 +12,48 @@ TCC Cássia/<br>
 
 Ao final da configuração o ambiente deverá seguir o seguinte exemplo:
 
-TCC Cássia/<br>
-│<br>
-├── tcc/<br>
+TCC Cássia/
+│
+├── tcc/
 │   └── ambiente de backend clonado através do git<br>
 
 # Instalação
 <ul>
 <li>No diretório "TCC Cássia/", clique com o botão direito e selecione a opção "Open Git Bash here"</li>
 <li>git clone https://github.com/cassiamariane/tcc</li>
-<li>cd tcc</li>
-<li>pip install virtualenv</li>
-<li>virtualenv venv</li>
-<li>. venv/Scripts/activate</li>
-<li>pip install -r requirements.txt</li>
+<li><code>cd tcc</code></li>
+<li><code>pip install virtualenv</code></li>
+<li><code>virtualenv venv</code></li>
+<li><code>. venv/Scripts/activate</code></li>
+<li><code>pip install -r requirements.txt</code></li>
+</ul>
+
+# Aquisição dos dados
+<ul> 
+<li>Instale os arquivos CNPJ em <a href="https://arquivos.receitafederal.gov.br/dados/cnpj/dados_abertos_cnpj/" target="_blank">Portal de Dados Abertos - CNPJ</a></li> 
+<li>Salve os arquivos obedecendo à seguinte arquitetura dentro da pasta do projeto "tcc":</li> 
+├── tcc/<br>
+│   └── app/<br>
+│       └── models/<br>
+│           └── Dados2025/<br>
+│               └── CNPJ/<br>
+│                   ├── Cnaes/<br>
+│                   ├── Naturezas_juridicas/<br>
+│                   ├── Municipios/<br>
+│                   ├── Paises/<br>
+│                   ├── Estabelecimentos/<br>
+│                   └── Empresas/<br>
+</ul>
+
+# Banco de dados
+<ul> 
+<li>No Workbench (ou ferramenta de banco relacional de sua preferência), execute o script de criação do banco de dados.</li> <li>Ative o ambiente virtual: <code>. venv/Scripts/activate</code></li> 
+<li>Execute o comando para criação da base: <code>python -m app.models.create_database</code></li> 
 </ul>
 
 # Execução
 <ul>
-<li>. venv/Scripts/activate</li>
-<li>cd app</li>
-<li>streamlit run main.py</li>
+<li><code>. venv/Scripts/activate</code></li>
+<li><code>cd app</code></li>
+<li><code>streamlit run main.py</code></li>
 </ul>
